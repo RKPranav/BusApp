@@ -1,0 +1,13 @@
+# Node dependencies
+node_modules/
+.env
+
+# Frontend
+BusTrackerApp/node_modules/
+BusTrackerApp/build/
+
+# Backend
+BusTrackerBackend/node_modules/
+
+# Logs
+npm-debug.log*
