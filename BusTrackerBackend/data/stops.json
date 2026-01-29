@@ -1,0 +1,4 @@
+[
+  { "busNumber": "BUS101", "stop": "Stop 1", "students": ["Arjun"] },
+  { "busNumber": "BUS101", "stop": "Stop 2", "students": ["Meera"] }
+]

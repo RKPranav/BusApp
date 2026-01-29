@@ -1,0 +1,83 @@
+[
+  {
+    "date": "2026-01-29",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "students": [
+      {
+        "id": 1,
+        "name": "Ravi",
+        "present": true
+      },
+      {
+        "id": 2,
+        "name": "Anu",
+        "present": true
+      },
+      {
+        "id": 3,
+        "name": "Kiran",
+        "present": false
+      },
+      {
+        "id": 4,
+        "name": "Meena",
+        "present": false
+      }
+    ]
+  },
+  {
+    "date": "2026-01-29",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "students": [
+      {
+        "id": 5,
+        "name": "Suresh",
+        "present": true
+      },
+      {
+        "id": 6,
+        "name": "Divya",
+        "present": true
+      },
+      {
+        "id": 7,
+        "name": "Aakash",
+        "present": true
+      },
+      {
+        "id": 8,
+        "name": "Nithin",
+        "present": true
+      }
+    ]
+  },
+  {
+    "date": "2026-01-29",
+    "busNumber": "BUS101",
+    "stopNumber": 3,
+    "students": [
+      {
+        "id": 9,
+        "name": "Pooja",
+        "present": false
+      },
+      {
+        "id": 10,
+        "name": "Rahul",
+        "present": false
+      },
+      {
+        "id": 11,
+        "name": "Sneha",
+        "present": false
+      },
+      {
+        "id": 12,
+        "name": "Vikas",
+        "present": false
+      }
+    ]
+  }
+]

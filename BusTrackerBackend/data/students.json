@@ -1,0 +1,76 @@
+[
+  {
+    "studentName": "Arjun",
+    "password": "arjun123",
+    "busNumber": "BUS101",
+    "stop": "Stop 1"
+  },
+  {
+    "studentName": "Kiran",
+    "password": "kiran123",
+    "busNumber": "BUS101",
+    "stop": "Stop 1"
+  },
+  {
+    "studentName": "Rohit",
+    "password": "rohit123",
+    "busNumber": "BUS101",
+    "stop": "Stop 1"
+  },
+  {
+    "studentName": "Sneha",
+    "password": "sneha123",
+    "busNumber": "BUS101",
+    "stop": "Stop 1"
+  },
+
+  {
+    "studentName": "Meera",
+    "password": "meera123",
+    "busNumber": "BUS101",
+    "stop": "Stop 2"
+  },
+  {
+    "studentName": "Ananya",
+    "password": "ananya123",
+    "busNumber": "BUS101",
+    "stop": "Stop 2"
+  },
+  {
+    "studentName": "Vikram",
+    "password": "vikram123",
+    "busNumber": "BUS101",
+    "stop": "Stop 2"
+  },
+  {
+    "studentName": "Pooja",
+    "password": "pooja123",
+    "busNumber": "BUS101",
+    "stop": "Stop 2"
+  },
+
+  {
+    "studentName": "Rahul",
+    "password": "rahul123",
+    "busNumber": "BUS101",
+    "stop": "Stop 3"
+  },
+  {
+    "studentName": "Nisha",
+    "password": "nisha123",
+    "busNumber": "BUS101",
+    "stop": "Stop 3"
+  },
+  {
+    "studentName": "Amit",
+    "password": "amit123",
+    "busNumber": "BUS101",
+    "stop": "Stop 3"
+  },
+  {
+    "studentName": "Divya",
+    "password": "divya123",
+    "busNumber": "BUS101",
+    "stop": "Stop 3"
+  }
+]

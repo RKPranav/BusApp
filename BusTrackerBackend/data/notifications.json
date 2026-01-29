@@ -1,0 +1,44 @@
+[
+  {
+    "studentName": "Ravi",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "message": "🚌 Ravi boarded BUS101 at Stop 1",
+    "timestamp": "2026-01-29T13:39:35.540Z"
+  },
+  {
+    "studentName": "Anu",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "message": "🚌 Anu boarded BUS101 at Stop 1",
+    "timestamp": "2026-01-29T13:39:35.540Z"
+  },
+  {
+    "studentName": "Suresh",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "message": "🚌 Suresh boarded BUS101 at Stop 2",
+    "timestamp": "2026-01-29T13:40:37.494Z"
+  },
+  {
+    "studentName": "Divya",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "message": "🚌 Divya boarded BUS101 at Stop 2",
+    "timestamp": "2026-01-29T13:40:37.494Z"
+  },
+  {
+    "studentName": "Aakash",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "message": "🚌 Aakash boarded BUS101 at Stop 2",
+    "timestamp": "2026-01-29T13:40:37.494Z"
+  },
+  {
+    "studentName": "Nithin",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "message": "🚌 Nithin boarded BUS101 at Stop 2",
+    "timestamp": "2026-01-29T13:40:37.494Z"
+  }
+]
