@@ -1,45 +1,45 @@
-const express = require('express');
-const cors = require('cors');
-const fs = require('fs');
-const path = require('path');
+const express = require("express");
+const cors = require("cors");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const attendanceFile = path.join(__dirname, 'data', 'attendance.json');
-const buses = require('./data/buses.json');
-const students = require('./data/students.json');
+const attendanceFile = path.join(__dirname, "data", "attendance.json");
+const buses = require("./data/buses.json");
+const students = require("./data/students.json");
 
 /* DRIVER LOGIN */
-app.post('/login/driver', (req, res) => {
+app.post("/login/driver", (req, res) => {
   const { busNumber, password } = req.body;
 
   const driver = buses.find(
-    b => b.busNumber === busNumber && b.password === password
+    (b) => b.busNumber === busNumber && b.password === password,
   );
 
   if (!driver) {
-    return res.status(401).json({ message: 'Invalid driver credentials' });
+    return res.status(401).json({ message: "Invalid driver credentials" });
   }
 
-  res.json({ role: 'driver', busNumber });
+  res.json({ role: "driver", busNumber });
 });
 
 /* PARENT LOGIN */
-app.post('/login/parent', (req, res) => {
+app.post("/login/parent", (req, res) => {
   const { studentName, password } = req.body;
 
   const parent = students.find(
-    s => s.studentName === studentName && s.password === password
+    (s) => s.studentName === studentName && s.password === password,
   );
 
   if (!parent) {
-    return res.status(401).json({ message: 'Invalid parent credentials' });
+    return res.status(401).json({ message: "Invalid parent credentials" });
   }
 
   res.json({
-    role: 'parent',
+    role: "parent",
     busNumber: parent.busNumber,
     stop: parent.stop,
     studentName: parent.studentName,
@@ -47,22 +47,22 @@ app.post('/login/parent', (req, res) => {
 });
 
 /* STUDENTS AT STOP (Driver) */
-app.get('/students', (req, res) => {
+app.get("/students", (req, res) => {
   const { busNumber, stop } = req.query;
 
   const list = students.filter(
-    s => s.busNumber === busNumber && s.stop === stop
+    (s) => s.busNumber === busNumber && s.stop === stop,
   );
 
-  res.json(list.map(s => s.studentName));
+  res.json(list.map((s) => s.studentName));
 });
 
 /* SAVE ATTENDANCE */
-app.post('/attendance', (req, res) => {
+app.post("/attendance", (req, res) => {
   const { busNumber, stopNumber, students } = req.body;
 
   if (!busNumber || !stopNumber || !students) {
-    return res.status(400).json({ message: 'Invalid data' });
+    return res.status(400).json({ message: "Invalid data" });
   }
 
   let attendanceData = [];
@@ -78,9 +78,40 @@ app.post('/attendance', (req, res) => {
   });
 
   fs.writeFileSync(attendanceFile, JSON.stringify(attendanceData, null, 2));
-  res.json({ message: 'Attendance saved successfully' });
+  res.json({ message: "Attendance saved successfully" });
 });
 
 app.listen(3000, () => {
-  console.log('🚍 BusTracker Backend running on http://localhost:3000');
+  console.log("🚍 BusTracker Backend running on http://localhost:3000");
+});
+
+/* SAVE NOTIFICATION */
+
+const notificationsFile = path.join(__dirname, "data", "notifications.json");
+
+/* SAVE NOTIFICATION */
+app.post("/notification", (req, res) => {
+  const { busNumber, stopNumber, studentName, message } = req.body;
+
+  if (!busNumber || !message) {
+    return res.status(400).json({ message: "Invalid data" });
+  }
+
+  let notifications = [];
+
+  if (fs.existsSync(notificationsFile)) {
+    notifications = JSON.parse(fs.readFileSync(notificationsFile));
+  }
+
+  notifications.push({
+    time: new Date().toISOString(),
+    busNumber,
+    stopNumber,
+    studentName,
+    message,
+  });
+
+  fs.writeFileSync(notificationsFile, JSON.stringify(notifications, null, 2));
+
+  res.json({ message: "Notification saved" });
 });

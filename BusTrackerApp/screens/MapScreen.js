@@ -157,6 +157,21 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
 
     Alert.alert('Attendance Saved', 'Bus will continue');
 
+    attendanceList.forEach(s => {
+      if (s.present) {
+        fetch('http://10.0.2.2:3000/notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            busNumber,
+            stopNumber: currentStop,
+            studentName: s.name,
+            message: `${s.name} has boarded the bus`,
+          }),
+        });
+      }
+    });
+
     setShowAttendance(false);
     setAttendanceList([]);
     setStatusText('Running');
