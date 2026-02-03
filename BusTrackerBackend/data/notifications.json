@@ -12,5 +12,96 @@
     "stopNumber": 1,
     "studentName": "Anu",
     "message": "Anu has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:32:03.385Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Kiran",
+    "message": "Kiran has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:32:03.404Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Arjun",
+    "message": "Arjun has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:32:29.391Z",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "studentName": "Vikram",
+    "message": "Vikram has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:32:29.433Z",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "studentName": "Meera",
+    "message": "Meera has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:32:53.397Z",
+    "busNumber": "BUS101",
+    "stopNumber": 3,
+    "studentName": "Rahul",
+    "message": "Rahul has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:03.576Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Arjun",
+    "message": "Arjun has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:03.593Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Kiran",
+    "message": "Kiran has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:33.755Z",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "studentName": "Meera",
+    "message": "Meera has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:33.764Z",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "studentName": "Ananya",
+    "message": "Ananya has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:33.779Z",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "studentName": "Pooja",
+    "message": "Pooja has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:33.792Z",
+    "busNumber": "BUS101",
+    "stopNumber": 2,
+    "studentName": "Vikram",
+    "message": "Vikram has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:58.613Z",
+    "busNumber": "BUS101",
+    "stopNumber": 3,
+    "studentName": "Rahul",
+    "message": "Rahul has boarded the bus"
+  },
+  {
+    "time": "2026-02-03T12:46:58.630Z",
+    "busNumber": "BUS101",
+    "stopNumber": 3,
+    "studentName": "Nisha",
+    "message": "Nisha has boarded the bus"
   }
 ]

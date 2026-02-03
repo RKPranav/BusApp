@@ -6,8 +6,11 @@ import CheckBox from '@react-native-community/checkbox';
 import { setupNotifications, notifyBeforeStop } from '../utils/notifications';
 
 /* FIXED ROUTE */
-const START_POINT = { latitude: 12.9076, longitude: 77.4846 };
-const END_POINT = { latitude: 12.8916, longitude: 77.5675 };
+const START_POINT = {
+  latitude: 12.907609209246655,
+  longitude: 77.47634064715605,
+};
+const END_POINT = { latitude: 12.86377436214521, longitude: 77.43479290230692 };
 
 const MOVE_INTERVAL_MS = 500;
 
@@ -38,24 +41,30 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   /* STUDENTS */
   const studentsByStop = {
     1: [
-      { id: 1, name: 'Ravi', present: false },
-      { id: 2, name: 'Anu', present: false },
-      { id: 3, name: 'Kiran', present: false },
-      { id: 4, name: 'Meena', present: false },
+      { id: 1, name: 'Arjun', present: false },
+      { id: 2, name: 'Kiran', present: false },
+      { id: 3, name: 'Rohit', present: false },
+      { id: 4, name: 'Sneha', present: false },
     ],
     2: [
-      { id: 5, name: 'Suresh', present: false },
-      { id: 6, name: 'Divya', present: false },
-      { id: 7, name: 'Aakash', present: false },
-      { id: 8, name: 'Nithin', present: false },
+      { id: 5, name: 'Meera', present: false },
+      { id: 6, name: 'Ananya', present: false },
+      { id: 7, name: 'Vikram', present: false },
+      { id: 8, name: 'Pooja', present: false },
     ],
     3: [
-      { id: 9, name: 'Pooja', present: false },
-      { id: 10, name: 'Rahul', present: false },
-      { id: 11, name: 'Sneha', present: false },
-      { id: 12, name: 'Vikas', present: false },
+      { id: 9, name: 'Rahul', present: false },
+      { id: 10, name: 'Nisha', present: false },
+      { id: 11, name: 'Amit', present: false },
+      { id: 12, name: 'Divya', present: false },
     ],
   };
+
+  const calculateEtaToDestination = (currentIndex, totalLength) =>
+    Math.max(
+      0,
+      Math.ceil(((totalLength - currentIndex) * MOVE_INTERVAL_MS) / 1000),
+    );
 
   const calculateEtaToNextStop = (currentIndex, nextStopIndex) =>
     Math.max(
@@ -115,15 +124,20 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
 
       mapRef.current?.animateCamera({ center: pos, zoom: 16 });
 
+      let eta = 0;
       if (stopIndices.length > 0) {
-        const eta = calculateEtaToNextStop(index, stopIndices[0]);
+        eta = calculateEtaToNextStop(index, stopIndices[0]);
         setEtaSeconds(eta);
         setEtaLabel(`ETA to Stop ${stopNumber}`);
+      } else {
+        eta = calculateEtaToDestination(index, coords.length);
+        setEtaSeconds(eta);
+        setEtaLabel('ETA to Destination');
+      }
 
-        if (eta <= 8 && !hasNotified) {
-          notifyBeforeStop(stopNumber);
-          hasNotified = true;
-        }
+      if (eta <= 8 && !hasNotified) {
+        notifyBeforeStop(stopNumber);
+        hasNotified = true;
       }
 
       if (stopIndices.length > 0 && index === stopIndices[0]) {
