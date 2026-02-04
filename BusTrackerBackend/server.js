@@ -13,36 +13,20 @@ const students = require("./data/students.json");
 
 /* DRIVER LOGIN */
 app.post("/login/driver", (req, res) => {
-  const { busNumber, password } = req.body;
+  console.log("Driver login:", req.body);
 
-  const driver = buses.find(
-    (b) => b.busNumber === busNumber && b.password === password,
-  );
-
-  if (!driver) {
-    return res.status(401).json({ message: "Invalid driver credentials" });
-  }
-
-  res.json({ role: "driver", busNumber });
+  res.json({
+    role: "driver",
+    busNumber: req.body.busNumber,
+  });
 });
 
-/* PARENT LOGIN */
 app.post("/login/parent", (req, res) => {
-  const { studentName, password } = req.body;
-
-  const parent = students.find(
-    (s) => s.studentName === studentName && s.password === password,
-  );
-
-  if (!parent) {
-    return res.status(401).json({ message: "Invalid parent credentials" });
-  }
+  console.log("Parent login:", req.body);
 
   res.json({
     role: "parent",
-    busNumber: parent.busNumber,
-    stop: parent.stop,
-    studentName: parent.studentName,
+    studentName: req.body.studentName,
   });
 });
 
@@ -81,8 +65,12 @@ app.post("/attendance", (req, res) => {
   res.json({ message: "Attendance saved successfully" });
 });
 
-app.listen(3000, () => {
-  console.log("🚍 BusTracker Backend running on http://localhost:3000");
+app.listen(3000, "0.0.0.0", () => {
+  console.log("🚍 BusTracker Backend running on http://0.0.0.0:3000");
+});
+
+app.get("/", (req, res) => {
+  res.send("Backend is working 🚍");
 });
 
 /* SAVE NOTIFICATION */

@@ -1,107 +1,86 @@
 [
   {
-    "time": "2026-02-02T07:37:04.185Z",
+    "time": "2026-02-03T13:04:02.338Z",
     "busNumber": "BUS101",
     "stopNumber": 1,
-    "studentName": "Ravi",
-    "message": "Ravi has boarded the bus"
+    "studentName": "Sneha",
+    "message": "Are you coming or not?"
   },
   {
-    "time": "2026-02-02T07:37:04.203Z",
+    "time": "2026-02-03T14:55:46.518Z",
     "busNumber": "BUS101",
     "stopNumber": 1,
-    "studentName": "Anu",
-    "message": "Anu has boarded the bus"
+    "studentName": "Arjun",
+    "message": "Are you coming or not?"
   },
   {
-    "time": "2026-02-03T12:32:03.385Z",
+    "time": "2026-02-03T16:02:48.565Z",
     "busNumber": "BUS101",
     "stopNumber": 1,
-    "studentName": "Kiran",
-    "message": "Kiran has boarded the bus"
+    "studentName": "Arjun",
+    "message": "Are you coming or not?"
   },
   {
-    "time": "2026-02-03T12:32:03.404Z",
+    "time": "2026-02-03T16:02:51.315Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Arjun",
+    "message": "Are you coming or not?"
+  },
+  {
+    "time": "2026-02-04T07:22:45.181Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Rohit",
+    "message": "Are you coming or not?"
+  },
+  {
+    "time": "2026-02-04T07:22:45.185Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Sneha",
+    "message": "Are you coming or not?"
+  },
+  {
+    "time": "2026-02-04T07:44:50.850Z",
     "busNumber": "BUS101",
     "stopNumber": 1,
     "studentName": "Arjun",
     "message": "Arjun has boarded the bus"
   },
   {
-    "time": "2026-02-03T12:32:29.391Z",
-    "busNumber": "BUS101",
-    "stopNumber": 2,
-    "studentName": "Vikram",
-    "message": "Vikram has boarded the bus"
-  },
-  {
-    "time": "2026-02-03T12:32:29.433Z",
-    "busNumber": "BUS101",
-    "stopNumber": 2,
-    "studentName": "Meera",
-    "message": "Meera has boarded the bus"
-  },
-  {
-    "time": "2026-02-03T12:32:53.397Z",
-    "busNumber": "BUS101",
-    "stopNumber": 3,
-    "studentName": "Rahul",
-    "message": "Rahul has boarded the bus"
-  },
-  {
-    "time": "2026-02-03T12:46:03.576Z",
-    "busNumber": "BUS101",
-    "stopNumber": 1,
-    "studentName": "Arjun",
-    "message": "Arjun has boarded the bus"
-  },
-  {
-    "time": "2026-02-03T12:46:03.593Z",
+    "time": "2026-02-04T07:44:50.867Z",
     "busNumber": "BUS101",
     "stopNumber": 1,
     "studentName": "Kiran",
     "message": "Kiran has boarded the bus"
   },
   {
-    "time": "2026-02-03T12:46:33.755Z",
+    "time": "2026-02-04T07:44:50.868Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Rohit",
+    "message": "Rohit has boarded the bus"
+  },
+  {
+    "time": "2026-02-04T07:45:21.761Z",
     "busNumber": "BUS101",
     "stopNumber": 2,
     "studentName": "Meera",
     "message": "Meera has boarded the bus"
   },
   {
-    "time": "2026-02-03T12:46:33.764Z",
+    "time": "2026-02-04T07:45:21.784Z",
     "busNumber": "BUS101",
     "stopNumber": 2,
     "studentName": "Ananya",
     "message": "Ananya has boarded the bus"
   },
   {
-    "time": "2026-02-03T12:46:33.779Z",
-    "busNumber": "BUS101",
-    "stopNumber": 2,
-    "studentName": "Pooja",
-    "message": "Pooja has boarded the bus"
-  },
-  {
-    "time": "2026-02-03T12:46:33.792Z",
-    "busNumber": "BUS101",
-    "stopNumber": 2,
-    "studentName": "Vikram",
-    "message": "Vikram has boarded the bus"
-  },
-  {
-    "time": "2026-02-03T12:46:58.613Z",
+    "time": "2026-02-04T07:47:50.087Z",
     "busNumber": "BUS101",
     "stopNumber": 3,
     "studentName": "Rahul",
     "message": "Rahul has boarded the bus"
-  },
-  {
-    "time": "2026-02-03T12:46:58.630Z",
-    "busNumber": "BUS101",
-    "stopNumber": 3,
-    "studentName": "Nisha",
-    "message": "Nisha has boarded the bus"
   }
 ]
