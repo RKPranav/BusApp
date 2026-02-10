@@ -15,19 +15,41 @@ const students = require("./data/students.json");
 app.post("/login/driver", (req, res) => {
   console.log("Driver login:", req.body);
 
-  res.json({
-    role: "driver",
-    busNumber: req.body.busNumber,
-  });
+  const { busNumber, password } = req.body;
+
+  const bus = buses.find(
+    (b) => b.busNumber === busNumber && b.password === password,
+  );
+
+  if (bus) {
+    res.json({
+      role: "driver",
+      busNumber: bus.busNumber,
+    });
+  } else {
+    res.status(401).json({ message: "Invalid credentials" });
+  }
 });
 
 app.post("/login/parent", (req, res) => {
   console.log("Parent login:", req.body);
 
-  res.json({
-    role: "parent",
-    studentName: req.body.studentName,
-  });
+  const student = students.find(
+    (s) =>
+      s.studentName === req.body.studentName &&
+      s.password === req.body.password,
+  );
+
+  if (student) {
+    res.json({
+      role: "parent",
+      studentName: student.studentName,
+      busNumber: student.busNumber,
+      stop: student.stop,
+    });
+  } else {
+    res.status(401).json({ message: "Invalid credentials" });
+  }
 });
 
 /* STUDENTS AT STOP (Driver) */
@@ -102,4 +124,39 @@ app.post("/notification", (req, res) => {
   fs.writeFileSync(notificationsFile, JSON.stringify(notifications, null, 2));
 
   res.json({ message: "Notification saved" });
+});
+
+/* BUS TRACKING (IN-MEMORY) */
+const busLocations = {};
+
+app.post("/bus/update", (req, res) => {
+  const { busNumber, location, route, nextStop, eta, etaLabel } = req.body;
+
+  if (!busNumber || !location) {
+    return res.status(400).json({ message: "Missing bus data" });
+  }
+
+  busLocations[busNumber] = {
+    location,
+    route, // Optional: store route if needed, or just current pos
+    nextStop,
+    eta,
+    etaLabel,
+    lastUpdated: new Date(),
+  };
+
+  res.json({ message: "Location updated" });
+});
+
+app.get("/bus/status", (req, res) => {
+  const { busNumber } = req.query;
+  const status = busLocations[busNumber];
+
+  if (status) {
+    // console.log(`Sending status for ${busNumber}:`, status.location); // Optional: Uncomment for verbose logs
+    res.json(status);
+  } else {
+    // console.log(`Bus ${busNumber} not started`);
+    res.status(404).json({ message: "Bus not started" });
+  }
 });

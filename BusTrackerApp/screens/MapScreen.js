@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Button, StyleSheet, Alert } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import MapView, {
+  Marker,
+  Polyline,
+  UrlTile,
+  PROVIDER_DEFAULT,
+} from 'react-native-maps';
 import CheckBox from '@react-native-community/checkbox';
 import { setupNotifications, notifyBeforeStop } from '../utils/notifications';
 
@@ -12,14 +16,14 @@ const START_POINT = {
 };
 const END_POINT = { latitude: 12.86377436214521, longitude: 77.43479290230692 };
 
-const MOVE_INTERVAL_MS = 500;
+const MOVE_INTERVAL_MS = 1000; // Increased to 1s for smoother updates/less network load
 
 const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   const mapRef = useRef(null);
 
   const [route, setRoute] = useState([]);
   const [routeStops, setRouteStops] = useState([]);
-  const [busPosition, setBusPosition] = useState(null);
+  const [busPosition, setBusPosition] = useState(START_POINT);
 
   const [pausedRoute, setPausedRoute] = useState(null);
   const [pausedStopIndices, setPausedStopIndices] = useState(null);
@@ -33,6 +37,10 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   const [etaLabel, setEtaLabel] = useState('ETA');
   const [statusText, setStatusText] = useState('Idle');
   const [busStarted, setBusStarted] = useState(false);
+
+  // New States for Error Handling
+  const [connectionStatus, setConnectionStatus] = useState('Init...');
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     setupNotifications();
@@ -72,34 +80,131 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       Math.ceil(((nextStopIndex - currentIndex) * MOVE_INTERVAL_MS) / 1000),
     );
 
-  const fetchRoute = async () => {
+  /* ROUTE UTILS */
+  const getRouteFromOSRM = async () => {
     const url = `https://router.project-osrm.org/route/v1/driving/${START_POINT.longitude},${START_POINT.latitude};${END_POINT.longitude},${END_POINT.latitude}?overview=full&geometries=geojson`;
-    const res = await fetch(url);
-    const json = await res.json();
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
 
-    const coords = json.routes[0].geometry.coordinates.map(c => ({
-      latitude: c[1],
-      longitude: c[0],
-    }));
+      if (!json.routes || json.routes.length === 0) {
+        throw new Error('No route found');
+      }
 
-    const stopIndices = [
-      Math.floor(coords.length * 0.25),
-      Math.floor(coords.length * 0.5),
-      Math.floor(coords.length * 0.75),
-    ];
+      const coords = json.routes[0].geometry.coordinates.map(c => ({
+        latitude: c[1],
+        longitude: c[0],
+      }));
 
-    setRoute(coords);
-    setRouteStops(stopIndices.map(i => coords[i]));
-    setBusPosition(coords[0]);
+      const stopIndices = [
+        Math.floor(coords.length * 0.25),
+        Math.floor(coords.length * 0.5),
+        Math.floor(coords.length * 0.75),
+      ];
 
-    startBusAnimation(coords, stopIndices, 1);
+      return { coords, stopIndices };
+    } catch (error) {
+      console.error('Error fetching route:', error);
+      throw error;
+    }
   };
 
-  const handleShowRoute = () => {
+  /* TRACKING LOGIC */
+  // Parent Polling
+  useEffect(() => {
+    let pollInterval;
+
+    // Only fetch route and start polling if readOnly (Parent)
+    if (readOnly) {
+      setConnectionStatus('Connecting...');
+      // 1. Fetch Route for visualization
+      getRouteFromOSRM()
+        .then(({ coords, stopIndices }) => {
+          setRoute(coords);
+          setRouteStops(stopIndices.map(i => coords[i]));
+        })
+        .catch(() => {
+          // Silent catch or simple log for parent view initial fetch
+          console.log('Failed to fetch route for parent view');
+        });
+
+      // 2. Poll for bus location
+      pollInterval = setInterval(async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
+        try {
+          // Use 10.0.2.2 for emulator accessing host
+          const res = await fetch(
+            `http://10.0.2.2:3000/bus/status?busNumber=${busNumber || '1'}`,
+            { signal: controller.signal },
+          );
+          clearTimeout(timeoutId);
+
+          if (res.ok) {
+            const data = await res.json();
+            setConnectionStatus('Online');
+
+            if (data.location) {
+              setBusPosition(data.location);
+              setStatusText(
+                data.nextStop ? `Next Stop: ${data.nextStop}` : 'Bus Moving',
+              );
+
+              if (data.eta !== undefined) setEtaSeconds(data.eta);
+              if (data.etaLabel) setEtaLabel(data.etaLabel);
+
+              // Animate camera to new position
+              mapRef.current?.animateCamera({
+                center: data.location,
+                zoom: 16,
+              });
+            }
+          } else if (res.status === 404) {
+            setConnectionStatus('Waiting for Bus...');
+            setStatusText('Bus Not Started');
+          } else {
+            setConnectionStatus(`Server Error: ${res.status}`);
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            console.log('Polling timeout');
+            setConnectionStatus('Timeout');
+          } else {
+            console.log('Polling error', err);
+            setConnectionStatus('Connection Error');
+          }
+        }
+      }, 2000);
+    }
+
+    // Cleanup
+    return () => clearInterval(pollInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readOnly, busNumber]);
+
+  const handleShowRoute = async () => {
+    if (readOnly) return;
+
     setBusStarted(false);
-    setStatusText('Running');
-    setEtaLabel('ETA to Stop 1');
-    fetchRoute();
+    setStatusText('Starting...');
+    setEtaLabel('Calculating...');
+
+    try {
+      const { coords, stopIndices } = await getRouteFromOSRM();
+
+      setRoute(coords);
+      setRouteStops(stopIndices.map(i => coords[i]));
+      setBusPosition(coords[0]);
+
+      startBusAnimation(coords, stopIndices, 1);
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        'Failed to fetch start route. check internet connection.',
+      );
+      setStatusText('Error');
+    }
   };
 
   const startBusAnimation = (coords, stopIndices, stopNumber) => {
@@ -111,6 +216,8 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       setBusStarted(true);
     }
 
+    setStatusText(`Moving to Stop ${stopNumber}`);
+
     const interval = setInterval(() => {
       if (index >= coords.length - 1) {
         clearInterval(interval);
@@ -121,19 +228,34 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
 
       const pos = coords[index];
       setBusPosition(pos);
-
       mapRef.current?.animateCamera({ center: pos, zoom: 16 });
 
+      // Calculate ETA BEFORE sending
       let eta = 0;
+      let currentEtaLabel = '';
       if (stopIndices.length > 0) {
         eta = calculateEtaToNextStop(index, stopIndices[0]);
-        setEtaSeconds(eta);
-        setEtaLabel(`ETA to Stop ${stopNumber}`);
+        currentEtaLabel = `ETA to Stop ${stopNumber}`;
       } else {
         eta = calculateEtaToDestination(index, coords.length);
-        setEtaSeconds(eta);
-        setEtaLabel('ETA to Destination');
+        currentEtaLabel = 'ETA to Destination';
       }
+
+      setEtaSeconds(eta);
+      setEtaLabel(currentEtaLabel);
+
+      // SYNC: Update backend with ETA
+      fetch('http://10.0.2.2:3000/bus/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          busNumber: busNumber || '1',
+          location: pos,
+          nextStop: stopNumber,
+          eta: eta,
+          etaLabel: currentEtaLabel,
+        }),
+      }).catch(err => console.log('Sync error', err));
 
       if (eta <= 8 && !hasNotified) {
         notifyBeforeStop(stopNumber);
@@ -200,17 +322,64 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <View
+      style={{
+        flex: 1,
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#e0e0e0',
+      }}
+    >
       <View style={styles.topBox}>
-        <Text>Status: {statusText}</Text>
-        <Text>
+        <Text style={styles.statusText}>Status: {statusText}</Text>
+        <Text style={styles.etaText}>
           {etaLabel}: {etaSeconds} sec
         </Text>
-        {!readOnly && <Button title="Show Route" onPress={handleShowRoute} />}
+        {readOnly && (
+          <View style={{ alignItems: 'center' }}>
+            <Text
+              style={{
+                fontSize: 12,
+                color: connectionStatus === 'Online' ? 'green' : 'red',
+                marginTop: 4,
+              }}
+            >
+              Network: {connectionStatus}
+            </Text>
+            <Text style={{ fontSize: 10, color: '#aaa' }}>
+              Debug: Bus={busNumber} | ReadOnly={readOnly ? 'Yes' : 'No'}
+            </Text>
+          </View>
+        )}
+        {!readOnly && (
+          <Button title="Start Journey" onPress={handleShowRoute} />
+        )}
       </View>
 
-      <MapView ref={mapRef} style={{ flex: 1 }} provider={PROVIDER_DEFAULT}>
-        {route.length > 0 && <Polyline coordinates={route} strokeWidth={5} />}
+      <MapView
+        ref={mapRef}
+        style={{ flex: 1, width: '100%', height: '100%' }}
+        provider={PROVIDER_DEFAULT}
+        mapType="standard"
+        initialRegion={{
+          latitude: START_POINT.latitude,
+          longitude: START_POINT.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+        onMapReady={() => setMapReady(true)}
+      >
+        {/* OPENSTREETMAP TILES */}
+        <UrlTile
+          urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maximumZ={19}
+          flipY={false}
+          zIndex={100}
+        />
+
+        {route.length > 0 && (
+          <Polyline coordinates={route} strokeColor="blue" strokeWidth={5} />
+        )}
 
         {/* STOPS WITH COLOR */}
         {Array.isArray(routeStops) &&
@@ -241,11 +410,13 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
 
       {!readOnly && showAttendance && (
         <View style={styles.attendanceBox}>
-          <Text>Stop {currentStop} Attendance</Text>
+          <Text style={styles.attendanceTitle}>
+            Stop {currentStop} Attendance
+          </Text>
 
           {attendanceList.map((s, i) => (
             <View key={s.id} style={styles.studentRow}>
-              <Text>{s.name}</Text>
+              <Text style={styles.studentName}>{s.name}</Text>
               <CheckBox
                 value={s.present}
                 onValueChange={v => {
@@ -257,26 +428,73 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
             </View>
           ))}
 
-          <Button title="Submit Attendance" onPress={handleSubmitAttendance} />
+          <View style={{ marginTop: 10 }}>
+            <Button
+              title="Submit Attendance"
+              onPress={handleSubmitAttendance}
+            />
+          </View>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 };
 
 export default MapScreen;
 
 const styles = StyleSheet.create({
-  topBox: { padding: 10, alignItems: 'center' },
+  topBox: {
+    padding: 12,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    width: '100%',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    zIndex: 10,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  etaText: {
+    fontSize: 14,
+    color: '#666',
+  },
   attendanceBox: {
     position: 'absolute',
     bottom: 0,
     backgroundColor: '#fff',
     width: '100%',
-    padding: 15,
+    padding: 20,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  attendanceTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#333',
   },
   studentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  studentName: {
+    fontSize: 16,
+    color: '#444',
   },
 });
