@@ -19,5 +19,26 @@
     "stopNumber": 1,
     "studentName": "Kiran",
     "message": "Kiran has boarded the bus"
+  },
+  {
+    "time": "2026-02-10T16:25:57.552Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Arjun",
+    "message": "Arjun has boarded the bus"
+  },
+  {
+    "time": "2026-02-11T04:49:27.005Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Arjun",
+    "message": "Arjun has boarded the bus"
+  },
+  {
+    "time": "2026-02-11T04:49:27.041Z",
+    "busNumber": "BUS101",
+    "stopNumber": 1,
+    "studentName": "Kiran",
+    "message": "Kiran has boarded the bus"
   }
 ]

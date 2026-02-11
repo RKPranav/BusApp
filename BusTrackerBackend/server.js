@@ -8,8 +8,41 @@ app.use(cors());
 app.use(express.json());
 
 const attendanceFile = path.join(__dirname, "data", "attendance.json");
-const buses = require("./data/buses.json");
-const students = require("./data/students.json");
+const busesFile = path.join(__dirname, "data", "buses.json");
+const studentsFile = path.join(__dirname, "data", "students.json");
+const adminsFile = path.join(__dirname, "data", "admins.json"); // New admin file
+
+// Helper to read data
+const readData = (filePath) => {
+  if (fs.existsSync(filePath)) {
+    return JSON.parse(fs.readFileSync(filePath));
+  }
+  return [];
+};
+
+// Helper to write data
+const writeData = (filePath, data) => {
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+};
+
+let buses = readData(busesFile);
+let students = readData(studentsFile);
+let admins = readData(adminsFile);
+
+/* ADMIN LOGIN */
+app.post("/login/admin", (req, res) => {
+  console.log("Admin login:", req.body);
+  const { username, password } = req.body;
+  const admin = admins.find(
+    (a) => a.username === username && a.password === password,
+  );
+
+  if (admin) {
+    res.json({ role: "admin", username: admin.username });
+  } else {
+    res.status(401).json({ message: "Invalid admin credentials" });
+  }
+});
 
 /* DRIVER LOGIN */
 app.post("/login/driver", (req, res) => {
@@ -158,5 +191,99 @@ app.get("/bus/status", (req, res) => {
   } else {
     // console.log(`Bus ${busNumber} not started`);
     res.status(404).json({ message: "Bus not started" });
+  }
+});
+
+/* ADMIN: GET ALL BUSES */
+app.get("/buses/all", (req, res) => {
+  res.json(busLocations);
+});
+
+/* ADMIN: CRUD DRIVERS (BUSES) */
+app.get("/admin/drivers", (req, res) => {
+  buses = readData(busesFile); // Refresh
+  res.json(buses);
+});
+
+app.post("/admin/drivers", (req, res) => {
+  const newBus = req.body;
+  buses = readData(busesFile);
+  if (buses.find((b) => b.busNumber === newBus.busNumber)) {
+    return res.status(400).json({ message: "Bus number already exists" });
+  }
+  buses.push(newBus);
+  writeData(busesFile, buses);
+  res.json({ message: "Driver added", buses });
+});
+
+app.put("/admin/drivers/:busNumber", (req, res) => {
+  const { busNumber } = req.params;
+  const updatedData = req.body;
+  buses = readData(busesFile);
+  const index = buses.findIndex((b) => b.busNumber === busNumber);
+  if (index !== -1) {
+    buses[index] = { ...buses[index], ...updatedData };
+    writeData(busesFile, buses);
+    res.json({ message: "Driver updated", buses });
+  } else {
+    res.status(404).json({ message: "Driver not found" });
+  }
+});
+
+app.delete("/admin/drivers/:busNumber", (req, res) => {
+  const { busNumber } = req.params;
+  buses = readData(busesFile);
+  const newBuses = buses.filter((b) => b.busNumber !== busNumber);
+  if (buses.length !== newBuses.length) {
+    writeData(busesFile, newBuses);
+    buses = newBuses; // update reference
+    res.json({ message: "Driver deleted", buses });
+  } else {
+    res.status(404).json({ message: "Driver not found" });
+  }
+});
+
+/* ADMIN: CRUD PARENTS (STUDENTS) */
+app.get("/admin/students", (req, res) => {
+  students = readData(studentsFile); // Refresh
+  res.json(students);
+});
+
+app.post("/admin/students", (req, res) => {
+  const newStudent = req.body;
+  students = readData(studentsFile);
+  if (students.find((s) => s.studentName === newStudent.studentName)) {
+    // Simple check, ideally check ID or uniqueness
+    // Allowing same name but logically might want unique ID. For now just push.
+  }
+  students.push(newStudent);
+  writeData(studentsFile, students);
+  res.json({ message: "Student added", students });
+});
+
+app.put("/admin/students/:studentName", (req, res) => {
+  const { studentName } = req.params;
+  const updatedData = req.body;
+  students = readData(studentsFile);
+  const index = students.findIndex((s) => s.studentName === studentName);
+  if (index !== -1) {
+    students[index] = { ...students[index], ...updatedData };
+    writeData(studentsFile, students);
+    res.json({ message: "Student updated", students });
+  } else {
+    res.status(404).json({ message: "Student not found" });
+  }
+});
+
+app.delete("/admin/students/:studentName", (req, res) => {
+  const { studentName } = req.params;
+  students = readData(studentsFile);
+  const newStudents = students.filter((s) => s.studentName !== studentName);
+  if (students.length !== newStudents.length) {
+    writeData(studentsFile, newStudents);
+    students = newStudents;
+    res.json({ message: "Student deleted", students });
+  } else {
+    res.status(404).json({ message: "Student not found" });
   }
 });

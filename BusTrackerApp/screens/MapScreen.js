@@ -8,6 +8,7 @@ import MapView, {
 } from 'react-native-maps';
 import CheckBox from '@react-native-community/checkbox';
 import { setupNotifications, notifyBeforeStop } from '../utils/notifications';
+import { BASE_URL } from '../config/api';
 
 /* FIXED ROUTE */
 const START_POINT = {
@@ -136,7 +137,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         try {
           // Use 10.0.2.2 for emulator accessing host
           const res = await fetch(
-            `http://10.0.2.2:3000/bus/status?busNumber=${busNumber || '1'}`,
+            `${BASE_URL}/bus/status?busNumber=${busNumber || '1'}`,
             { signal: controller.signal },
           );
           clearTimeout(timeoutId);
@@ -245,7 +246,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       setEtaLabel(currentEtaLabel);
 
       // SYNC: Update backend with ETA
-      fetch('http://10.0.2.2:3000/bus/update', {
+      fetch(`${BASE_URL}/bus/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -281,7 +282,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   };
 
   const handleSubmitAttendance = async () => {
-    await fetch('http://10.0.2.2:3000/attendance', {
+    await fetch(`${BASE_URL}/attendance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -295,7 +296,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
 
     attendanceList.forEach(s => {
       if (s.present) {
-        fetch('http://10.0.2.2:3000/notification', {
+        fetch(`${BASE_URL}/notification`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

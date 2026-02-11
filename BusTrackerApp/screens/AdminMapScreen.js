@@ -1,0 +1,113 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { BASE_URL } from '../config/api';
+
+const AdminMapScreen = ({ navigation }) => {
+  const [buses, setBuses] = useState({});
+  const mapRef = useRef(null);
+
+  useEffect(() => {
+    const fetchBuses = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/buses/all`);
+        const data = await res.json();
+        setBuses(data);
+      } catch (error) {
+        console.error('Error fetching buses:', error);
+      }
+    };
+
+    fetchBuses(); // Initial fetch
+    const interval = setInterval(fetchBuses, 3000); // Poll every 3s
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const busList = Object.keys(buses).map(key => ({
+    id: key,
+    ...buses[key],
+  }));
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => {
+              console.log('Back pressed');
+              navigation.goBack();
+            }}
+            style={styles.backBtn}
+            hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+          >
+            <Text style={styles.backText}>{'< Back'}</Text>
+          </TouchableOpacity>
+          <View style={styles.headerTitleContainer}>
+            <Text style={styles.title}>Live Fleet Tracking</Text>
+            <Text style={styles.subtitle}>{busList.length} Active Buses</Text>
+          </View>
+          <View style={{ width: 50 }} />
+        </View>
+
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          provider={PROVIDER_DEFAULT}
+          initialRegion={{
+            latitude: 12.907609209246655, // Default center
+            longitude: 77.47634064715605,
+            latitudeDelta: 0.1,
+            longitudeDelta: 0.1,
+          }}
+        >
+          <UrlTile
+            urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maximumZ={19}
+            flipY={false}
+            zIndex={100}
+          />
+
+          {busList.map(
+            bus =>
+              bus.location && (
+                <Marker
+                  key={bus.id}
+                  coordinate={bus.location}
+                  title={`Bus: ${bus.id}`}
+                  description={
+                    bus.etaLabel ? `${bus.etaLabel}: ${bus.eta}s` : 'Moving'
+                  }
+                  pinColor="blue"
+                />
+              ),
+          )}
+        </MapView>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+export default AdminMapScreen;
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1 },
+  header: {
+    padding: 15,
+    backgroundColor: 'white',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  backBtn: { padding: 10 },
+  backText: { fontSize: 16, color: '#007bff', fontWeight: 'bold' },
+  headerTitleContainer: { alignItems: 'center' },
+  title: { fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  subtitle: { fontSize: 14, color: 'gray', textAlign: 'center' },
+  map: { flex: 1 },
+});
