@@ -8,7 +8,16 @@ import MapView, {
 } from 'react-native-maps';
 import CheckBox from '@react-native-community/checkbox';
 import { setupNotifications, notifyBeforeStop } from '../utils/notifications';
-import { BASE_URL } from '../config/api';
+import { db } from '../config/firebase';
+import {
+  doc,
+  onSnapshot,
+  updateDoc,
+  setDoc,
+  addDoc,
+  collection,
+  serverTimestamp,
+} from 'firebase/firestore';
 
 /* FIXED ROUTE */
 const START_POINT = {
@@ -17,7 +26,7 @@ const START_POINT = {
 };
 const END_POINT = { latitude: 12.86377436214521, longitude: 77.43479290230692 };
 
-const MOVE_INTERVAL_MS = 1000; // Increased to 1s for smoother updates/less network load
+const MOVE_INTERVAL_MS = 1000;
 
 const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   const mapRef = useRef(null);
@@ -111,11 +120,10 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   };
 
   /* TRACKING LOGIC */
-  // Parent Polling
   useEffect(() => {
-    let pollInterval;
+    let unsubscribe;
 
-    // Only fetch route and start polling if readOnly (Parent)
+    // Only fetch route and start listener if readOnly (Parent)
     if (readOnly) {
       setConnectionStatus('Connecting...');
       // 1. Fetch Route for visualization
@@ -125,25 +133,16 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
           setRouteStops(stopIndices.map(i => coords[i]));
         })
         .catch(() => {
-          // Silent catch or simple log for parent view initial fetch
           console.log('Failed to fetch route for parent view');
         });
 
-      // 2. Poll for bus location
-      pollInterval = setInterval(async () => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-
-        try {
-          // Use 10.0.2.2 for emulator accessing host
-          const res = await fetch(
-            `${BASE_URL}/bus/status?busNumber=${busNumber || '1'}`,
-            { signal: controller.signal },
-          );
-          clearTimeout(timeoutId);
-
-          if (res.ok) {
-            const data = await res.json();
+      // 2. Listen for bus location via Firestore
+      const busDocRef = doc(db, 'buses', busNumber || 'BUS101');
+      unsubscribe = onSnapshot(
+        busDocRef,
+        docSnap => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
             setConnectionStatus('Online');
 
             if (data.location) {
@@ -151,37 +150,29 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
               setStatusText(
                 data.nextStop ? `Next Stop: ${data.nextStop}` : 'Bus Moving',
               );
-
               if (data.eta !== undefined) setEtaSeconds(data.eta);
               if (data.etaLabel) setEtaLabel(data.etaLabel);
 
-              // Animate camera to new position
               mapRef.current?.animateCamera({
                 center: data.location,
                 zoom: 16,
               });
             }
-          } else if (res.status === 404) {
+          } else {
             setConnectionStatus('Waiting for Bus...');
             setStatusText('Bus Not Started');
-          } else {
-            setConnectionStatus(`Server Error: ${res.status}`);
           }
-        } catch (err) {
-          if (err.name === 'AbortError') {
-            console.log('Polling timeout');
-            setConnectionStatus('Timeout');
-          } else {
-            console.log('Polling error', err);
-            setConnectionStatus('Connection Error');
-          }
-        }
-      }, 2000);
+        },
+        error => {
+          console.error('Firestore error:', error);
+          setConnectionStatus('Connection Error');
+        },
+      );
     }
 
-    // Cleanup
-    return () => clearInterval(pollInterval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, [readOnly, busNumber]);
 
   const handleShowRoute = async () => {
@@ -215,6 +206,16 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
     if (!busStarted) {
       Alert.alert('Bus Started', 'The bus has started 🚍');
       setBusStarted(true);
+      // Initialize Bus Doc
+      setDoc(
+        doc(db, 'buses', busNumber || 'BUS101'),
+        {
+          startedAt: serverTimestamp(),
+          status: 'active',
+          busNumber: busNumber || 'BUS101',
+        },
+        { merge: true },
+      );
     }
 
     setStatusText(`Moving to Stop ${stopNumber}`);
@@ -245,17 +246,13 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       setEtaSeconds(eta);
       setEtaLabel(currentEtaLabel);
 
-      // SYNC: Update backend with ETA
-      fetch(`${BASE_URL}/bus/update`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          busNumber: busNumber || '1',
-          location: pos,
-          nextStop: stopNumber,
-          eta: eta,
-          etaLabel: currentEtaLabel,
-        }),
+      // SYNC: Update Firestore
+      updateDoc(doc(db, 'buses', busNumber || 'BUS101'), {
+        location: pos,
+        nextStop: stopNumber,
+        eta: eta,
+        etaLabel: currentEtaLabel,
+        lastUpdated: serverTimestamp(),
       }).catch(err => console.log('Sync error', err));
 
       if (eta <= 8 && !hasNotified) {
@@ -272,7 +269,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         setNextStopNumber(stopNumber + 1);
 
         setCurrentStop(stopNumber);
-        setAttendanceList(studentsByStop[stopNumber]);
+        setAttendanceList(studentsByStop[stopNumber] || []);
         setShowAttendance(true);
         return;
       }
@@ -282,32 +279,35 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   };
 
   const handleSubmitAttendance = async () => {
-    await fetch(`${BASE_URL}/attendance`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        busNumber,
+    // 1. Save Attendance to Firestore
+    try {
+      await addDoc(collection(db, 'attendance'), {
+        busNumber: busNumber || 'BUS101',
         stopNumber: currentStop,
         students: attendanceList,
-      }),
-    });
+        timestamp: serverTimestamp(),
+        date: new Date().toISOString().split('T')[0],
+      });
 
-    Alert.alert('Attendance Saved', 'Bus will continue');
+      Alert.alert('Attendance Saved', 'Bus will continue');
 
-    attendanceList.forEach(s => {
-      if (s.present) {
-        fetch(`${BASE_URL}/notification`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            busNumber,
-            stopNumber: currentStop,
+      // 2. Send Notifications (Simulated via Firestore or just Local)
+      // Here we just log it or add to a notifications collection
+      attendanceList.forEach(s => {
+        if (s.present) {
+          addDoc(collection(db, 'notifications'), {
+            busNumber: busNumber || 'BUS101',
             studentName: s.name,
-            message: `${s.name} has boarded the bus`,
-          }),
-        });
-      }
-    });
+            message: `${s.name} has boarded the bus at Stop ${currentStop}`,
+            read: false,
+            createdAt: serverTimestamp(),
+          });
+        }
+      });
+    } catch (e) {
+      console.error('Error saving attendance', e);
+      Alert.alert('Error', 'Failed to save attendance');
+    }
 
     setShowAttendance(false);
     setAttendanceList([]);

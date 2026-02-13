@@ -2,33 +2,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BASE_URL } from '../config/api';
+import { db } from '../config/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 const AdminMapScreen = ({ navigation }) => {
-  const [buses, setBuses] = useState({});
+  const [buses, setBuses] = useState([]);
   const mapRef = useRef(null);
 
   useEffect(() => {
-    const fetchBuses = async () => {
-      try {
-        const res = await fetch(`${BASE_URL}/buses/all`);
-        const data = await res.json();
-        setBuses(data);
-      } catch (error) {
-        console.error('Error fetching buses:', error);
-      }
-    };
+    // Listen to all documents in 'buses' collection
+    const unsubscribe = onSnapshot(
+      collection(db, 'buses'),
+      snapshot => {
+        const busList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        setBuses(busList);
+      },
+      error => {
+        console.error('Error fetching buses: ', error);
+      },
+    );
 
-    fetchBuses(); // Initial fetch
-    const interval = setInterval(fetchBuses, 3000); // Poll every 3s
-
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, []);
-
-  const busList = Object.keys(buses).map(key => ({
-    id: key,
-    ...buses[key],
-  }));
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -36,7 +34,6 @@ const AdminMapScreen = ({ navigation }) => {
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
-              console.log('Back pressed');
               navigation.goBack();
             }}
             style={styles.backBtn}
@@ -46,7 +43,7 @@ const AdminMapScreen = ({ navigation }) => {
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.title}>Live Fleet Tracking</Text>
-            <Text style={styles.subtitle}>{busList.length} Active Buses</Text>
+            <Text style={styles.subtitle}>{buses.length} Active Buses</Text>
           </View>
           <View style={{ width: 50 }} />
         </View>
@@ -69,13 +66,13 @@ const AdminMapScreen = ({ navigation }) => {
             zIndex={100}
           />
 
-          {busList.map(
+          {buses.map(
             bus =>
               bus.location && (
                 <Marker
                   key={bus.id}
                   coordinate={bus.location}
-                  title={`Bus: ${bus.id}`}
+                  title={`Bus: ${bus.busNumber || bus.id}`}
                   description={
                     bus.etaLabel ? `${bus.etaLabel}: ${bus.eta}s` : 'Moving'
                   }

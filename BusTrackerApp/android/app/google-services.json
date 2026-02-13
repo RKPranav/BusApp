@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "32178673637",
+    "project_id": "busapp-01",
+    "storage_bucket": "busapp-01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:32178673637:android:c25fd9ecdaf6f6c77ac10c",
+        "android_client_info": {
+          "package_name": "com.bustrackerapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAdgafpUoxSP0qkcDCYKIqpHzRCppCbuh4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

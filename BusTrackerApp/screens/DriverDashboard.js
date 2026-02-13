@@ -1,16 +1,10 @@
 import React from 'react';
-import {
-  View,
-  Text,
-  Alert,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, Alert, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapScreen from '../screens/MapScreen';
 
 const DriverDashboard = ({ navigation, route }) => {
-  const { busNumber } = route.params || {};
+  const { busNumber, uid, email } = route.params || {};
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Go back to login?', [
@@ -26,15 +20,27 @@ const DriverDashboard = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       {/* 🔝 ANDROID SAFE HEADER */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Driver Dashboard</Text>
+        <Text style={styles.headerTitle}>Driver: {busNumber}</Text>
 
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={styles.logoutButton}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.logoutText}>LOGOUT</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row' }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Chat')}
+            style={[
+              styles.logoutButton,
+              { backgroundColor: '#FFA500', marginRight: 10 },
+            ]}
+          >
+            <Text style={styles.logoutText}>CHAT</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={handleLogout}
+            style={styles.logoutButton}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.logoutText}>LOGOUT</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 🚌 BUS MAP + SIMULATION */}

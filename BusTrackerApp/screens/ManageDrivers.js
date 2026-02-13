@@ -10,7 +10,18 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BASE_URL } from '../config/api';
+import { auth, db } from '../config/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  setDoc,
+  deleteDoc,
+  updateDoc,
+} from 'firebase/firestore';
 
 const ManageDrivers = ({ navigation }) => {
   const [drivers, setDrivers] = useState([]);
@@ -19,6 +30,7 @@ const ManageDrivers = ({ navigation }) => {
 
   // Form State
   const [busNumber, setBusNumber] = useState('');
+  const [email, setEmail] = useState(''); // Added email for Auth
   const [password, setPassword] = useState('');
 
   useEffect(() => {
@@ -27,51 +39,66 @@ const ManageDrivers = ({ navigation }) => {
 
   const fetchDrivers = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/admin/drivers`);
-      const data = await res.json();
-      setDrivers(data);
+      const q = query(collection(db, 'users'), where('role', '==', 'driver'));
+      const querySnapshot = await getDocs(q);
+      const driverList = [];
+      querySnapshot.forEach(doc => {
+        driverList.push({ id: doc.id, ...doc.data() });
+      });
+      setDrivers(driverList);
     } catch (error) {
       console.error('Error fetching drivers:', error);
+      Alert.alert('Error', 'Failed to fetch drivers');
     }
   };
 
   const handleSave = async () => {
-    if (!busNumber || !password) {
+    if (!busNumber || (!isEditing && (!email || !password))) {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
 
-    const url = isEditing
-      ? `${BASE_URL}/admin/drivers/${busNumber}`
-      : `${BASE_URL}/admin/drivers`;
-    const method = isEditing ? 'PUT' : 'POST';
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ busNumber, password }),
-      });
-
-      if (res.ok) {
-        setModalVisible(false);
-        setBusNumber('');
-        setPassword('');
-        fetchDrivers();
-        Alert.alert('Success', `Driver ${isEditing ? 'Updated' : 'Added'}`);
+      if (isEditing) {
+        // Update Firestore Doc Only (Cannot update Auth password easily without re-login)
+        const driverRef = doc(db, 'users', isEditing); // isEditing holds the doc ID
+        await updateDoc(driverRef, { busNumber }); // Password update skipped for client-side simplicity
+        Alert.alert('Success', 'Driver Updated (Password unchanged)');
       } else {
-        const err = await res.json();
-        Alert.alert('Error', err.message || 'Operation failed');
+        // 1. Create Auth User
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password,
+        );
+        const user = userCredential.user;
+
+        // 2. Create Firestore Profile
+        await setDoc(doc(db, 'users', user.uid), {
+          email,
+          busNumber,
+          role: 'driver',
+          createdAt: new Date(),
+        });
+        Alert.alert('Success', 'Driver Added');
       }
+
+      setModalVisible(false);
+      setBusNumber('');
+      setEmail('');
+      setPassword('');
+      setIsEditing(false);
+      fetchDrivers();
     } catch (error) {
-      Alert.alert('Error', 'Network error');
+      console.error('Save error: ', error);
+      Alert.alert('Error', error.message);
     }
   };
 
-  const handleDelete = async itemsBusNumber => {
+  const handleDelete = async id => {
     Alert.alert(
       'Delete Driver',
-      `Are you sure you want to delete ${itemsBusNumber}?`,
+      'Are you sure? This will remove the driver from the list. (Auth account remains)',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -79,9 +106,7 @@ const ManageDrivers = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/admin/drivers/${itemsBusNumber}`, {
-                method: 'DELETE',
-              });
+              await deleteDoc(doc(db, 'users', id));
               fetchDrivers();
             } catch (error) {
               Alert.alert('Error', 'Could not delete');
@@ -94,13 +119,15 @@ const ManageDrivers = ({ navigation }) => {
 
   const openEdit = item => {
     setBusNumber(item.busNumber);
-    setPassword(item.password);
-    setIsEditing(true);
+    setEmail(item.email || '');
+    setPassword('******'); // Placeholder
+    setIsEditing(item.id); // store ID to edit
     setModalVisible(true);
   };
 
   const openAdd = () => {
     setBusNumber('');
+    setEmail('');
     setPassword('');
     setIsEditing(false);
     setModalVisible(true);
@@ -110,14 +137,14 @@ const ManageDrivers = ({ navigation }) => {
     <View style={styles.card}>
       <View>
         <Text style={styles.cardTitle}>Bus: {item.busNumber}</Text>
-        <Text style={styles.cardSubtitle}>Pass: {item.password}</Text>
+        <Text style={styles.cardSubtitle}>{item.email}</Text>
       </View>
       <View style={styles.actionRow}>
         <TouchableOpacity onPress={() => openEdit(item)} style={styles.editBtn}>
           <Text style={styles.btnText}>Edit</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => handleDelete(item.busNumber)}
+          onPress={() => handleDelete(item.id)}
           style={styles.deleteBtn}
         >
           <Text style={styles.btnText}>Delete</Text>
@@ -145,7 +172,7 @@ const ManageDrivers = ({ navigation }) => {
 
         <FlatList
           data={drivers}
-          keyExtractor={item => item.busNumber}
+          keyExtractor={item => item.id}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 80 }}
         />
@@ -158,18 +185,34 @@ const ManageDrivers = ({ navigation }) => {
               </Text>
 
               <TextInput
+                placeholder="Email Address"
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                editable={!isEditing} // Email is immutable for now
+              />
+
+              <TextInput
                 placeholder="Bus Number (e.g., BUS101)"
                 style={styles.input}
                 value={busNumber}
                 onChangeText={setBusNumber}
-                editable={!isEditing} // Bus Number is ID, usually immutable or needs proper handling
               />
+
               <TextInput
                 placeholder="Password"
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
+                secureTextEntry={false}
+                editable={!isEditing} // Prevent password edit for simplicity
               />
+              {isEditing && (
+                <Text style={{ fontSize: 10, color: 'red', marginBottom: 10 }}>
+                  * Password cannot be changed here
+                </Text>
+              )}
 
               <View style={styles.modalButtons}>
                 <Button

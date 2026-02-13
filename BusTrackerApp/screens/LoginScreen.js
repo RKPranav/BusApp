@@ -6,57 +6,110 @@ import {
   Button,
   StyleSheet,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
-import { BASE_URL } from '../config/api';
+import { auth, db } from '../config/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const LoginScreen = ({ navigation }) => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('driver'); // driver, parent, admin
 
-  const login = async () => {
-    let url = `${BASE_URL}/login/driver`;
-    let body = { busNumber: username, password };
+  const createProfileAndLogin = async user => {
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const newProfile = {
+        role,
+        email: user.email,
+        createdAt: serverTimestamp(),
+      };
 
-    if (role === 'parent') {
-      url = `${BASE_URL}/login/parent`;
-      body = { studentName: username, password };
-    } else if (role === 'admin') {
-      url = `${BASE_URL}/login/admin`;
-      body = { username, password };
+      await setDoc(userDocRef, newProfile);
+      console.log('Created new user profile:', newProfile);
+
+      Alert.alert('Success', 'Profile created successfully');
+
+      // Navigate
+      if (role === 'driver') {
+        navigation.replace('DriverDashboard', { ...newProfile, uid: user.uid });
+      } else if (role === 'parent') {
+        navigation.replace('ParentDashboard', { ...newProfile, uid: user.uid });
+      } else if (role === 'admin') {
+        navigation.replace('AdminDashboard', { ...newProfile, uid: user.uid });
+      }
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      Alert.alert('Error', 'Failed to create user profile');
+    }
+  };
+
+  const login = async () => {
+    console.log('Login attempt started with:', email, role);
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
     }
 
     try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      // 1. Authenticate with Firebase Auth
+      console.log('Authenticating with Firebase...');
+      const userCredential = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      const user = userCredential.user;
+      console.log('Firebase Auth successful, UID:', user.uid);
 
-      if (!res.ok) {
-        alert('Invalid credentials');
-        return;
-      }
+      // 2. Fetch User Role & Data from Firestore
+      const userDocRef = doc(db, 'users', user.uid);
+      console.log(
+        'Fetching user data from Firestore path:',
+        `users/${user.uid}`,
+      );
+      const userDoc = await getDoc(userDocRef);
 
-      const data = await res.json();
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        console.log('User data found:', userData);
 
-      if (data.role === 'driver') {
-        navigation.replace('DriverDashboard', data);
-      } else if (data.role === 'parent') {
-        navigation.replace('ParentDashboard', data);
-      } else if (data.role === 'admin') {
-        navigation.replace('AdminDashboard', data);
+        // 3. Verify Role
+        if (userData.role !== role) {
+          console.log(`Role mismatch: expected ${role}, got ${userData.role}`);
+          Alert.alert('Access Denied', `You are not registered as a ${role}`);
+          return;
+        }
+
+        // 4. Navigate based on role
+        console.log('Navigating to dashboard...');
+        if (userData.role === 'driver') {
+          navigation.replace('DriverDashboard', { ...userData, uid: user.uid });
+        } else if (userData.role === 'parent') {
+          navigation.replace('ParentDashboard', { ...userData, uid: user.uid });
+        } else if (userData.role === 'admin') {
+          navigation.replace('AdminDashboard', { ...userData, uid: user.uid });
+        }
+      } else {
+        console.log(
+          'User document does not exist in Firestore. Auto-creating profile...',
+        );
+        // Directly create profile without Alert, to avoid context issues
+        await createProfileAndLogin(user);
       }
     } catch (error) {
-      console.error('Login error:', error);
-      alert('Network error. Please check your connection or server.');
+      console.error('Login error full object:', error);
+      let msg = 'Login failed';
+      if (error.code === 'auth/invalid-email') msg = 'Invalid email address';
+      if (error.code === 'auth/user-not-found') msg = 'User not found';
+      if (error.code === 'auth/wrong-password') msg = 'Incorrect password';
+      Alert.alert('Login Error', msg);
     }
   };
 
   const getPlaceholder = () => {
-    if (role === 'driver') return 'Bus Number';
-    if (role === 'parent') return 'Student Name';
-    return 'Admin Username';
+    return 'Email Address';
   };
 
   return (
@@ -99,8 +152,10 @@ const LoginScreen = ({ navigation }) => {
       <TextInput
         placeholder={getPlaceholder()}
         style={styles.input}
-        onChangeText={setUsername}
+        onChangeText={setEmail}
+        value={email}
         autoCapitalize="none"
+        keyboardType="email-address"
       />
 
       <TextInput
@@ -108,6 +163,7 @@ const LoginScreen = ({ navigation }) => {
         style={styles.input}
         secureTextEntry
         onChangeText={setPassword}
+        value={password}
       />
 
       <Button title="Login" onPress={login} />

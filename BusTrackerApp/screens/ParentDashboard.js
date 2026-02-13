@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import MapScreen from '../screens/MapScreen';
 
 const ParentDashboard = ({ navigation, route }) => {
-  const { busNumber, stop } = route.params || {};
+  const { busNumber, stop, studentName } = route.params || {};
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Go back to login?', [
@@ -17,11 +17,23 @@ const ParentDashboard = ({ navigation, route }) => {
     <SafeAreaView style={styles.container}>
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Parent Dashboard</Text>
+        <Text style={styles.headerTitle}>Parent: {studentName}</Text>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>LOGOUT</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row' }}>
+          <TouchableOpacity
+            style={[
+              styles.logoutButton,
+              { backgroundColor: '#FFA500', marginRight: 10 },
+            ]}
+            onPress={() => navigation.navigate('Chat')}
+          >
+            <Text style={styles.logoutText}>CHAT</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>LOGOUT</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* READ-ONLY BUS TRACKING */}

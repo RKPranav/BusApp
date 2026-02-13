@@ -10,7 +10,18 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BASE_URL } from '../config/api';
+import { auth, db } from '../config/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  setDoc,
+  deleteDoc,
+  updateDoc,
+} from 'firebase/firestore';
 
 const ManageParents = ({ navigation }) => {
   const [students, setStudents] = useState([]);
@@ -19,6 +30,7 @@ const ManageParents = ({ navigation }) => {
 
   // Form State
   const [studentName, setStudentName] = useState('');
+  const [email, setEmail] = useState(''); // Added email for Auth
   const [password, setPassword] = useState('');
   const [busNumber, setBusNumber] = useState('');
   const [stop, setStop] = useState('');
@@ -29,53 +41,75 @@ const ManageParents = ({ navigation }) => {
 
   const fetchStudents = async () => {
     try {
-      const res = await fetch(`${BASE_URL}/admin/students`);
-      const data = await res.json();
-      setStudents(data);
+      const q = query(collection(db, 'users'), where('role', '==', 'parent'));
+      const querySnapshot = await getDocs(q);
+      const studentList = [];
+      querySnapshot.forEach(userDoc => {
+        studentList.push({ id: userDoc.id, ...userDoc.data() });
+      });
+      setStudents(studentList);
     } catch (error) {
       console.error('Error fetching students:', error);
+      Alert.alert('Error', 'Failed to fetch parents');
     }
   };
 
   const handleSave = async () => {
-    if (!studentName || !password || !busNumber || !stop) {
+    if (
+      !studentName ||
+      !busNumber ||
+      !stop ||
+      (!isEditing && (!email || !password))
+    ) {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
 
-    const url = isEditing
-      ? `${BASE_URL}/admin/students/${studentName}`
-      : `${BASE_URL}/admin/students`;
-    const method = isEditing ? 'PUT' : 'POST';
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentName, password, busNumber, stop }),
-      });
-
-      if (res.ok) {
-        setModalVisible(false);
-        setStudentName('');
-        setPassword('');
-        setBusNumber('');
-        setStop('');
-        fetchStudents();
-        Alert.alert('Success', `Student ${isEditing ? 'Updated' : 'Added'}`);
+      if (isEditing) {
+        // Update Firestore Doc Only
+        const parentRef = doc(db, 'users', isEditing);
+        await updateDoc(parentRef, { studentName, busNumber, stop });
+        Alert.alert('Success', 'Parent Updated (Password unchanged)');
       } else {
-        const err = await res.json();
-        Alert.alert('Error', err.message || 'Operation failed');
+        // 1. Create Auth User
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          email,
+          password,
+        );
+        const user = userCredential.user;
+
+        // 2. Create Firestore Profile
+        await setDoc(doc(db, 'users', user.uid), {
+          email,
+          studentName,
+          busNumber,
+          stop: parseInt(stop) || stop, // Ensure stop is handled correctly
+          role: 'parent',
+          createdAt: new Date(),
+        });
+        Alert.alert('Success', 'Parent Added');
       }
+
+      setModalVisible(false);
+      setStudentName('');
+      setEmail('');
+      setPassword('');
+      setBusNumber('');
+      setStop('');
+      setIsEditing(false);
+      fetchStudents();
     } catch (error) {
-      Alert.alert('Error', 'Network error');
+      console.error('Save error: ', error);
+      Alert.alert('Error', error.message);
     }
   };
 
-  const handleDelete = async itemStudentName => {
+  const handleDelete = async id => {
     Alert.alert(
-      'Delete Student',
-      `Are you sure you want to delete ${itemStudentName}?`,
+      'Delete Parent',
+      'Are you sure? This will remove the parent from the list.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -83,9 +117,7 @@ const ManageParents = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              await fetch(`${BASE_URL}/admin/students/${itemStudentName}`, {
-                method: 'DELETE',
-              });
+              await deleteDoc(doc(db, 'users', id));
               fetchStudents();
             } catch (error) {
               Alert.alert('Error', 'Could not delete');
@@ -98,15 +130,17 @@ const ManageParents = ({ navigation }) => {
 
   const openEdit = item => {
     setStudentName(item.studentName);
-    setPassword(item.password);
+    setEmail(item.email || '');
+    setPassword('******');
     setBusNumber(item.busNumber);
-    setStop(item.stop);
-    setIsEditing(true);
+    setStop(item.stop ? String(item.stop) : '');
+    setIsEditing(item.id);
     setModalVisible(true);
   };
 
   const openAdd = () => {
     setStudentName('');
+    setEmail('');
     setPassword('');
     setBusNumber('');
     setStop('');
@@ -121,14 +155,14 @@ const ManageParents = ({ navigation }) => {
         <Text style={styles.cardSubtitle}>
           Bus: {item.busNumber} | Stop: {item.stop}
         </Text>
-        <Text style={styles.cardSubtitle}>Pass: {item.password}</Text>
+        <Text style={styles.cardSubtitle}>{item.email}</Text>
       </View>
       <View style={styles.actionRow}>
         <TouchableOpacity onPress={() => openEdit(item)} style={styles.editBtn}>
           <Text style={styles.btnText}>Edit</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={() => handleDelete(item.studentName)}
+          onPress={() => handleDelete(item.id)}
           style={styles.deleteBtn}
         >
           <Text style={styles.btnText}>Delete</Text>
@@ -156,7 +190,7 @@ const ManageParents = ({ navigation }) => {
 
         <FlatList
           data={students}
-          keyExtractor={item => item.studentName}
+          keyExtractor={item => item.id}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 80 }}
         />
@@ -173,6 +207,13 @@ const ManageParents = ({ navigation }) => {
                 style={styles.input}
                 value={studentName}
                 onChangeText={setStudentName}
+              />
+              <TextInput
+                placeholder="Email Address"
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
                 editable={!isEditing}
               />
               <TextInput
@@ -180,7 +221,15 @@ const ManageParents = ({ navigation }) => {
                 style={styles.input}
                 value={password}
                 onChangeText={setPassword}
+                secureTextEntry={false}
+                editable={!isEditing}
               />
+              {isEditing && (
+                <Text style={{ fontSize: 10, color: 'red', marginBottom: 10 }}>
+                  * Password cannot be changed here
+                </Text>
+              )}
+
               <TextInput
                 placeholder="Bus Number (e.g., BUS101)"
                 style={styles.input}
