@@ -20,16 +20,6 @@ const ParentDashboard = ({ navigation, route }) => {
         <Text style={styles.headerTitle}>Parent: {studentName}</Text>
 
         <View style={{ flexDirection: 'row' }}>
-          <TouchableOpacity
-            style={[
-              styles.logoutButton,
-              { backgroundColor: '#FFA500', marginRight: 10 },
-            ]}
-            onPress={() => navigation.navigate('Chat')}
-          >
-            <Text style={styles.logoutText}>CHAT</Text>
-          </TouchableOpacity>
-
           <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
             <Text style={styles.logoutText}>LOGOUT</Text>
           </TouchableOpacity>

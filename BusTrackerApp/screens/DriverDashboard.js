@@ -24,16 +24,6 @@ const DriverDashboard = ({ navigation, route }) => {
 
         <View style={{ flexDirection: 'row' }}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('Chat')}
-            style={[
-              styles.logoutButton,
-              { backgroundColor: '#FFA500', marginRight: 10 },
-            ]}
-          >
-            <Text style={styles.logoutText}>CHAT</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             onPress={handleLogout}
             style={styles.logoutButton}
             activeOpacity={0.7}

@@ -1,11 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Button, StyleSheet, Alert } from 'react-native';
-import MapView, {
-  Marker,
-  Polyline,
-  UrlTile,
-  PROVIDER_DEFAULT,
-} from 'react-native-maps';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import CheckBox from '@react-native-community/checkbox';
 import { setupNotifications, notifyBeforeStop } from '../utils/notifications';
 import { db } from '../config/firebase';
@@ -30,6 +25,24 @@ const MOVE_INTERVAL_MS = 1000;
 
 const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   const mapRef = useRef(null);
+  const fullRouteRef = useRef([]); // Store full route for slicing
+
+  // Helper to calculate bearing between two points
+  const getBearing = (startLat, startLng, destLat, destLng) => {
+    const startLatRad = (startLat * Math.PI) / 180;
+    const startLngRad = (startLng * Math.PI) / 180;
+    const destLatRad = (destLat * Math.PI) / 180;
+    const destLngRad = (destLng * Math.PI) / 180;
+
+    const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
+    const x =
+      Math.cos(startLatRad) * Math.sin(destLatRad) -
+      Math.sin(startLatRad) *
+        Math.cos(destLatRad) *
+        Math.cos(destLngRad - startLngRad);
+    const brng = (Math.atan2(y, x) * 180) / Math.PI;
+    return (brng + 360) % 360;
+  };
 
   const [route, setRoute] = useState([]);
   const [routeStops, setRouteStops] = useState([]);
@@ -130,6 +143,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       getRouteFromOSRM()
         .then(({ coords, stopIndices }) => {
           setRoute(coords);
+          fullRouteRef.current = coords; // Store full copy
           setRouteStops(stopIndices.map(i => coords[i]));
         })
         .catch(() => {
@@ -153,9 +167,19 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
               if (data.eta !== undefined) setEtaSeconds(data.eta);
               if (data.etaLabel) setEtaLabel(data.etaLabel);
 
+              // Update Route Slicing for Parent
+              if (
+                data.routeIndex !== undefined &&
+                fullRouteRef.current.length > 0
+              ) {
+                setRoute(fullRouteRef.current.slice(data.routeIndex));
+              }
+
               mapRef.current?.animateCamera({
                 center: data.location,
-                zoom: 16,
+                zoom: 17,
+                heading: data.heading || 0,
+                pitch: 0, // Keep 2D for parents usually, or changable
               });
             }
           } else {
@@ -186,6 +210,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       const { coords, stopIndices } = await getRouteFromOSRM();
 
       setRoute(coords);
+      fullRouteRef.current = coords; // Store full copy
       setRouteStops(stopIndices.map(i => coords[i]));
       setBusPosition(coords[0]);
 
@@ -230,7 +255,26 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
 
       const pos = coords[index];
       setBusPosition(pos);
-      mapRef.current?.animateCamera({ center: pos, zoom: 16 });
+      setRoute(coords.slice(index)); // Hide traversed path
+
+      // Calculate Heading
+      let heading = 0;
+      if (index < coords.length - 1) {
+        const nextPos = coords[index + 1];
+        heading = getBearing(
+          pos.latitude,
+          pos.longitude,
+          nextPos.latitude,
+          nextPos.longitude,
+        );
+      }
+
+      mapRef.current?.animateCamera({
+        center: pos,
+        zoom: 18,
+        pitch: 60, // Tilted view for navigation feel
+        heading: heading,
+      });
 
       // Calculate ETA BEFORE sending
       let eta = 0;
@@ -249,6 +293,8 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       // SYNC: Update Firestore
       updateDoc(doc(db, 'buses', busNumber || 'BUS101'), {
         location: pos,
+        routeIndex: index, // Send current index
+        heading: heading, // Send heading for visualization
         nextStop: stopNumber,
         eta: eta,
         etaLabel: currentEtaLabel,
@@ -360,7 +406,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
       <MapView
         ref={mapRef}
         style={{ flex: 1, width: '100%', height: '100%' }}
-        provider={PROVIDER_DEFAULT}
+        provider={PROVIDER_GOOGLE}
         mapType="standard"
         initialRegion={{
           latitude: START_POINT.latitude,
@@ -369,15 +415,8 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
           longitudeDelta: 0.05,
         }}
         onMapReady={() => setMapReady(true)}
+        showsTraffic={true}
       >
-        {/* OPENSTREETMAP TILES */}
-        <UrlTile
-          urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maximumZ={19}
-          flipY={false}
-          zIndex={100}
-        />
-
         {route.length > 0 && (
           <Polyline coordinates={route} strokeColor="blue" strokeWidth={5} />
         )}

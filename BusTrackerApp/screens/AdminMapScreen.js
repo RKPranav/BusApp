@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../config/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -51,21 +51,15 @@ const AdminMapScreen = ({ navigation }) => {
         <MapView
           ref={mapRef}
           style={styles.map}
-          provider={PROVIDER_DEFAULT}
+          provider={PROVIDER_GOOGLE}
           initialRegion={{
             latitude: 12.907609209246655, // Default center
             longitude: 77.47634064715605,
             latitudeDelta: 0.1,
             longitudeDelta: 0.1,
           }}
+          showsTraffic={true}
         >
-          <UrlTile
-            urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            maximumZ={19}
-            flipY={false}
-            zIndex={100}
-          />
-
           {buses.map(
             bus =>
               bus.location && (

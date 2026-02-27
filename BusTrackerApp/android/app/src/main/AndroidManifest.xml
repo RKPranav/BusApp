@@ -4,7 +4,7 @@
 
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.INTERNET" />
+
 
     <application
       android:name=".MainApplication"
@@ -18,7 +18,7 @@
 
       <meta-data
         android:name="com.google.android.geo.API_KEY"
-        android:value="[GCP_API_KEY]"/>
+        android:value="AIzaSyCgYxwpKWlNOw6RvnN7JiLDhhkCf-uPqHs"/>
 
       <activity
         android:name=".MainActivity"
