@@ -2,7 +2,13 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, Button, StyleSheet, Alert } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import CheckBox from '@react-native-community/checkbox';
-import { setupNotifications, notifyBeforeStop } from '../utils/notifications';
+import {
+  setupNotifications,
+  notifyBeforeStop,
+  notifyBusApproaching,
+  notifyBusStarted,
+  notifyBusReachedSchool,
+} from '../utils/notifications';
 import { db } from '../config/firebase';
 import {
   doc,
@@ -26,6 +32,10 @@ const MOVE_INTERVAL_MS = 1000;
 const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   const mapRef = useRef(null);
   const fullRouteRef = useRef([]); // Store full route for slicing
+
+  // Firebase listener state refs to prevent closure traps
+  const isInitialLoadRef = useRef(true);
+  const lastStatusRef = useRef(null);
 
   // Helper to calculate bearing between two points
   const getBearing = (startLat, startLng, destLat, destLng) => {
@@ -60,6 +70,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   const [etaLabel, setEtaLabel] = useState('ETA');
   const [statusText, setStatusText] = useState('Idle');
   const [busStarted, setBusStarted] = useState(false);
+  const notifiedStopsRef = useRef(new Set()); // Track notified stops
 
   // New States for Error Handling
   const [connectionStatus, setConnectionStatus] = useState('Init...');
@@ -139,10 +150,17 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
     // Only fetch route and start listener if readOnly (Parent)
     if (readOnly) {
       setConnectionStatus('Connecting...');
-      // 1. Fetch Route for visualization
+
+      let localFullRoute = [];
+
+      // Reset refs when joining a new component mount or changing busNumber
+      isInitialLoadRef.current = true;
+      lastStatusRef.current = null;
+
+      // 1. Fetch Route for visualization (Do not set Route here to prevent early render before Firebase snaps)
       getRouteFromOSRM()
         .then(({ coords, stopIndices }) => {
-          setRoute(coords);
+          localFullRoute = coords;
           fullRouteRef.current = coords; // Store full copy
           setRouteStops(stopIndices.map(i => coords[i]));
         })
@@ -159,20 +177,92 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
             const data = docSnap.data();
             setConnectionStatus('Online');
 
-            if (data.location) {
-              setBusPosition(data.location);
+            const isNowActive = data.status === 'active';
+            const wasActive = lastStatusRef.current === 'active';
+
+            // --- NOTIFICATION & ALERT LOGIC ---
+            if (!isInitialLoadRef.current) {
+              if (isNowActive && !wasActive) {
+                notifyBusStarted();
+                Alert.alert('Bus Started', 'The bus has started 🚍');
+              } else if (
+                data.status === 'completed' &&
+                lastStatusRef.current !== 'completed'
+              ) {
+                notifyBusReachedSchool();
+                Alert.alert(
+                  'Reached Destination',
+                  'The bus has safely reached the school.',
+                );
+                setEtaSeconds(0);
+                setStatusText('Reached Destination');
+              }
+            } else {
+              // Initial Load checks
+              if (isNowActive) {
+                // If the route just started, the bus is at index 0.
+                const justStarted =
+                  data.routeIndex === 0 || data.routeIndex === undefined;
+
+                // Extra fallback checks to prevent spam: Only trigger if the journey started within the last 60 seconds
+                const now = Date.now();
+                const startedAtMs = data.startedAt?.toMillis
+                  ? data.startedAt.toMillis()
+                  : now;
+
+                if (justStarted && now - startedAtMs < 60000) {
+                  notifyBusStarted();
+                  Alert.alert('Bus Started', 'The bus has started 🚍');
+                }
+              } else if (data.status === 'completed') {
+                setEtaSeconds(0);
+                setStatusText('Reached Destination');
+              }
+            }
+
+            // --- ROUTE & STATUS LOGIC ---
+            if (isNowActive) {
+              if (localFullRoute.length > 0) {
+                setRoute(localFullRoute.slice(data.routeIndex || 0));
+              }
               setStatusText(
                 data.nextStop ? `Next Stop: ${data.nextStop}` : 'Bus Moving',
               );
+            } else if (data.status === 'completed') {
+              setRoute([]);
+            } else {
+              setRoute([]);
+              setStatusText('Bus Not Started');
+            }
+
+            lastStatusRef.current = data.status;
+            isInitialLoadRef.current = false;
+
+            if (data.location) {
+              setBusPosition(data.location);
+
               if (data.eta !== undefined) setEtaSeconds(data.eta);
               if (data.etaLabel) setEtaLabel(data.etaLabel);
 
-              // Update Route Slicing for Parent
-              if (
-                data.routeIndex !== undefined &&
-                fullRouteRef.current.length > 0
-              ) {
-                setRoute(fullRouteRef.current.slice(data.routeIndex));
+              // Local notification triggers for parent based on ETA
+              if (data.eta !== undefined && data.nextStop && isNowActive) {
+                // Notified when Bus is ~50 seconds away (roughly 500m logic in city traffic)
+                if (
+                  data.eta <= 50 &&
+                  data.eta > 8 &&
+                  !notifiedStopsRef.current.has(`approach_${data.nextStop}`)
+                ) {
+                  notifyBusApproaching(data.nextStop);
+                  notifiedStopsRef.current.add(`approach_${data.nextStop}`);
+                }
+                // Notified when Bus is very close (8 seconds away)
+                if (
+                  data.eta <= 8 &&
+                  !notifiedStopsRef.current.has(`stop_${data.nextStop}`)
+                ) {
+                  notifyBeforeStop(data.nextStop);
+                  notifiedStopsRef.current.add(`stop_${data.nextStop}`);
+                }
               }
 
               mapRef.current?.animateCamera({
@@ -238,6 +328,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
           startedAt: serverTimestamp(),
           status: 'active',
           busNumber: busNumber || 'BUS101',
+          routeIndex: 0,
         },
         { merge: true },
       );
@@ -250,6 +341,13 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         clearInterval(interval);
         setStatusText('Reached Destination');
         setEtaSeconds(0);
+
+        // Push completed status to Firestore so Parent logic triggers notifyBusReachedSchool
+        updateDoc(doc(db, 'buses', busNumber || 'BUS101'), {
+          status: 'completed',
+          lastUpdated: serverTimestamp(),
+        }).catch(err => console.log('Sync error marking completed', err));
+
         return;
       }
 
@@ -275,6 +373,24 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         pitch: 60, // Tilted view for navigation feel
         heading: heading,
       });
+
+      // Calculate distance to next stop
+      let distanceToNextStop = Infinity;
+      if (stopIndices.length > 0) {
+        const nextStopIndex = stopIndices[0];
+        // Rough estimate of distance (1 index movement is rough distance calculation, better approaches exist like haversine)
+        // OSRM coordinates are quite dense. Let's assume each coordinate is about ~10 meters apart
+        const remainingCoords = nextStopIndex - index;
+        distanceToNextStop = remainingCoords * 10; // rough estimation in meters
+
+        // 500m logic
+        if (distanceToNextStop <= 500 && distanceToNextStop > 0) {
+          if (!notifiedStopsRef.current.has(stopNumber)) {
+            notifyBusApproaching(stopNumber);
+            notifiedStopsRef.current.add(stopNumber);
+          }
+        }
+      }
 
       // Calculate ETA BEFORE sending
       let eta = 0;
@@ -417,6 +533,13 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         onMapReady={() => setMapReady(true)}
         showsTraffic={true}
       >
+        {fullRouteRef.current.length > 0 && (
+          <Polyline
+            coordinates={fullRouteRef.current}
+            strokeColor="#a0a0a0"
+            strokeWidth={5}
+          />
+        )}
         {route.length > 0 && (
           <Polyline coordinates={route} strokeColor="blue" strokeWidth={5} />
         )}
