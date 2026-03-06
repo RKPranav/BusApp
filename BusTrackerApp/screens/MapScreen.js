@@ -8,6 +8,7 @@ import {
   notifyBusApproaching,
   notifyBusStarted,
   notifyBusReachedSchool,
+  notifyCustomAlert,
 } from '../utils/notifications';
 import { db } from '../config/firebase';
 import {
@@ -18,6 +19,8 @@ import {
   addDoc,
   collection,
   serverTimestamp,
+  query,
+  where,
 } from 'firebase/firestore';
 
 /* FIXED ROUTE */
@@ -78,7 +81,22 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
 
   useEffect(() => {
     setupNotifications();
-  }, []);
+
+    // If it's the driver app, reset the bus status to idle on mount
+    // so previous incomplete trips don't show as active for parents today.
+    if (!readOnly) {
+      const currentBusNumber = busNumber || 'BUS101';
+      setDoc(
+        doc(db, 'buses', currentBusNumber),
+        {
+          status: 'idle',
+          location: START_POINT,
+          routeIndex: 0,
+        },
+        { merge: true },
+      ).catch(e => console.log('Driver reset error:', e));
+    }
+  }, [readOnly, busNumber]);
 
   /* STUDENTS */
   const studentsByStop = {
@@ -146,6 +164,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
   /* TRACKING LOGIC */
   useEffect(() => {
     let unsubscribe;
+    let unsubscribeAlerts;
 
     // Only fetch route and start listener if readOnly (Parent)
     if (readOnly) {
@@ -177,8 +196,23 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
             const data = docSnap.data();
             setConnectionStatus('Online');
 
-            const isNowActive = data.status === 'active';
+            const now = Date.now();
+            let isNowActive = data.status === 'active';
+
+            // Data freshness check: if the last update was more than 4 hours ago, treat it as inactive (stale)
+            const lastUpdatedMs = data.lastUpdated?.toMillis
+              ? data.lastUpdated.toMillis()
+              : data.startedAt?.toMillis
+              ? data.startedAt.toMillis()
+              : now;
+            if (isNowActive && now - lastUpdatedMs > 4 * 60 * 60 * 1000) {
+              isNowActive = false;
+            }
+
             const wasActive = lastStatusRef.current === 'active';
+
+            // Sync local busStarted state for conditionally hiding map elements before start
+            setBusStarted(isNowActive);
 
             // --- NOTIFICATION & ALERT LOGIC ---
             if (!isInitialLoadRef.current) {
@@ -223,6 +257,8 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
             // --- ROUTE & STATUS LOGIC ---
             if (isNowActive) {
               if (localFullRoute.length > 0) {
+                // Ensure the route always accurately represents where the bus is *currently*
+                // and where it holds *from* there, thus removing the past part of the route.
                 setRoute(localFullRoute.slice(data.routeIndex || 0));
               }
               setStatusText(
@@ -238,14 +274,14 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
             lastStatusRef.current = data.status;
             isInitialLoadRef.current = false;
 
-            if (data.location) {
+            if (isNowActive && data.location) {
               setBusPosition(data.location);
 
               if (data.eta !== undefined) setEtaSeconds(data.eta);
               if (data.etaLabel) setEtaLabel(data.etaLabel);
 
               // Local notification triggers for parent based on ETA
-              if (data.eta !== undefined && data.nextStop && isNowActive) {
+              if (data.eta !== undefined && data.nextStop) {
                 // Notified when Bus is ~50 seconds away (roughly 500m logic in city traffic)
                 if (
                   data.eta <= 50 &&
@@ -271,6 +307,24 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
                 heading: data.heading || 0,
                 pitch: 0, // Keep 2D for parents usually, or changable
               });
+            } else if (!isNowActive && data.status !== 'completed') {
+              // Reset to Start Point if not started yet
+              setBusPosition(START_POINT);
+              mapRef.current?.animateCamera({
+                center: START_POINT,
+                zoom: 15,
+                heading: 0,
+                pitch: 0,
+              });
+            } else if (data.status === 'completed') {
+              // Set to Start Point after completion so the next time Parent logs in it starts there
+              setBusPosition(START_POINT);
+              mapRef.current?.animateCamera({
+                center: START_POINT,
+                zoom: 15,
+                heading: 0,
+                pitch: 0,
+              });
             }
           } else {
             setConnectionStatus('Waiting for Bus...');
@@ -282,10 +336,43 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
           setConnectionStatus('Connection Error');
         },
       );
+
+      let isAlertsInitialLoad = true;
+      const alertsRef = collection(db, 'alerts');
+      const q = query(
+        alertsRef,
+        where('busNumber', '==', busNumber || 'BUS101'),
+      );
+
+      unsubscribeAlerts = onSnapshot(
+        q,
+        snapshot => {
+          if (isAlertsInitialLoad) {
+            isAlertsInitialLoad = false;
+            return;
+          }
+          snapshot.docChanges().forEach(change => {
+            if (change.type === 'added') {
+              const alertData = change.doc.data();
+              const titleRef =
+                alertData.type === 'system_alert'
+                  ? 'System Alert'
+                  : 'Driver Warning';
+              const messageRef = alertData.message || 'New Alert Received';
+              Alert.alert(titleRef, messageRef);
+              notifyCustomAlert(titleRef, messageRef);
+            }
+          });
+        },
+        err => {
+          console.error('Alerts listener error:', err);
+        },
+      );
     }
 
     return () => {
       if (unsubscribe) unsubscribe();
+      if (unsubscribeAlerts) unsubscribeAlerts();
     };
   }, [readOnly, busNumber]);
 
@@ -321,17 +408,28 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
     if (!busStarted) {
       Alert.alert('Bus Started', 'The bus has started 🚍');
       setBusStarted(true);
+
+      const currentBusNumber = busNumber || 'BUS101';
+
       // Initialize Bus Doc
       setDoc(
-        doc(db, 'buses', busNumber || 'BUS101'),
+        doc(db, 'buses', currentBusNumber),
         {
           startedAt: serverTimestamp(),
           status: 'active',
-          busNumber: busNumber || 'BUS101',
+          busNumber: currentBusNumber,
           routeIndex: 0,
         },
         { merge: true },
       );
+
+      // System Alert for Bus Started
+      addDoc(collection(db, 'alerts'), {
+        busNumber: currentBusNumber,
+        message: 'The bus has started its journey 🚍',
+        type: 'system_alert',
+        timestamp: serverTimestamp(),
+      }).catch(err => console.log('Alert error', err));
     }
 
     setStatusText(`Moving to Stop ${stopNumber}`);
@@ -533,7 +631,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         onMapReady={() => setMapReady(true)}
         showsTraffic={true}
       >
-        {fullRouteRef.current.length > 0 && (
+        {fullRouteRef.current.length > 0 && (!readOnly || busStarted) && (
           <Polyline
             coordinates={fullRouteRef.current}
             strokeColor="#a0a0a0"
@@ -545,7 +643,8 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         )}
 
         {/* STOPS WITH COLOR */}
-        {Array.isArray(routeStops) &&
+        {(!readOnly || busStarted) &&
+          Array.isArray(routeStops) &&
           routeStops.map((stop, i) => {
             let pinColor = 'orange';
             if (currentStop === i + 1) pinColor = 'green';

@@ -59,3 +59,15 @@ export async function notifyBusReachedSchool() {
     },
   });
 }
+
+/* 🔔 NOTIFY CUSTOM ALERT */
+export async function notifyCustomAlert(title, message) {
+  await notifee.displayNotification({
+    title: title,
+    body: message,
+    android: {
+      channelId: 'bus-tracker',
+      importance: AndroidImportance.HIGH,
+    },
+  });
+}
