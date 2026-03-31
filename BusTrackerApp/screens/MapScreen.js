@@ -281,11 +281,15 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
               if (data.etaLabel) setEtaLabel(data.etaLabel);
 
               // Local notification triggers for parent based on ETA
-              if (data.eta !== undefined && data.nextStop) {
-                // Notified when Bus is ~50 seconds away (roughly 500m logic in city traffic)
+              if (
+                data.eta !== undefined &&
+                data.nextStop &&
+                data.distanceToNextStop !== undefined
+              ) {
+                // Notified when Bus actual distance is 500m or less (and > 50m to prevent stop overlap)
                 if (
-                  data.eta <= 50 &&
-                  data.eta > 8 &&
+                  data.distanceToNextStop <= 500 &&
+                  data.distanceToNextStop > 50 &&
                   !notifiedStopsRef.current.has(`approach_${data.nextStop}`)
                 ) {
                   notifyBusApproaching(data.nextStop);
@@ -481,7 +485,7 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         const remainingCoords = nextStopIndex - index;
         distanceToNextStop = remainingCoords * 10; // rough estimation in meters
 
-        // 500m logic
+        // Driver local notification
         if (distanceToNextStop <= 500 && distanceToNextStop > 0) {
           if (!notifiedStopsRef.current.has(stopNumber)) {
             notifyBusApproaching(stopNumber);
@@ -510,6 +514,10 @@ const MapScreen = ({ busNumber, parentStop, readOnly = false }) => {
         routeIndex: index, // Send current index
         heading: heading, // Send heading for visualization
         nextStop: stopNumber,
+        distanceToNextStop:
+          distanceToNextStop > 0 && distanceToNextStop !== Infinity
+            ? distanceToNextStop
+            : 0,
         eta: eta,
         etaLabel: currentEtaLabel,
         lastUpdated: serverTimestamp(),
