@@ -219,7 +219,7 @@ const LoginScreen = ({ navigation }) => {
           <View style={styles.header}>
             <Text style={styles.logoIcon}>🚌</Text>
             <Text style={styles.welcomeText}>Welcome to</Text>
-            <Text style={styles.brandText}>PSi Bus</Text>
+            <Text style={styles.brandText}>Smart Bus</Text>
             <Text style={styles.subtitleText}>Please select your role to continue</Text>
           </View>
 
